@@ -1,0 +1,236 @@
+<!DOCTYPE HTML>
+<html lang="ko">
+<head>
+  	<title>Example WebSocket</title>
+    <meta charset="utf-8">
+  	<script src="/jquery/jquery.min.js"></script>
+    <script src="/javascripts/prototype.js"></script>
+    <script src="/javascripts/common.js"></script>
+ 	<script src="/socket.io/socket.io.js"></script>
+    <style type="text/css">
+    h4 { margin:5px; padding:0px; }
+    #div_RoomList, #div_ChatContent, #div_ChatForm { border:1px solid #ccc; }
+    #div_RoomList > div, #div_ChatContent > div, #div_ChatForm > div { margin:5px; }
+    </style>
+	<script type="text/javascript">
+		$(function() {            
+            g_Init.fn_Init();
+            g_Init.fn_Event();
+        });
+        
+        var g_Init = {
+            fn_Init: function() {
+                g_Common.fn_GetParameters();
+                g_Chat.fn_SocketConnect();
+            },
+            fn_Event: function() {
+                $('#txt_Message').focus();
+                $('#btn_CreateRoom').bind('click', function() { g_Chat.fn_CreateRoom(); });
+                $('#btn_LeaveRoom').bind('click', function() { g_Chat.fn_LeaveRoom(); });
+                $('#btn_SendMessage').bind('click', function() { g_Chat.fn_Send(); });
+                $('#txt_Message').bind('keypress', function(e) { if ((e.keyCode ? e.keyCode : e.which) == 13) g_Chat.fn_Send(); });
+                $(document.body).on('click', '#div_RoomList li:not(#li_DataEmpty)', function() { g_Chat.fn_JoinRoom(this); });
+            }
+        }
+
+        var g_Common = {
+            fn_GetParameters: function() {
+                var url = decodeURIComponent(parent.location.href);
+                if (url.indexOf('?') > -1) {
+                    var parameters = (url.split('?')[1].indexOf('&') <= -1) ? [url.split('?')[1]] : url.split('?')[1].split('&');
+
+                    for (var i=0; i<parameters.length; i++) {
+                        if (parameters[i].indexOf('=') > -1) {
+                            var param = parameters[i].split('=');
+                            if (param[0].toUpperCase() == "USERID") $('#txt_ID').val(param[1]);
+                            else if (param[0].toUpperCase() == "USERNAME") $('#txt_NickName').val
+                            (param[1]);
+                            else if (param[0].toUpperCase() == "ROOMNAME") $('#txt_RoomName').val
+                            (param[1]);
+                        }
+                    }
+                }
+            }
+        }
+
+        var g_Chat = {
+            socket: null,
+            data: { mode: null, value: null },
+            fn_AutoScroll: function(objNM) {
+                var $obj = $(objNM);
+                $obj.animate({ scrollTop: $obj.prop('scrollHeight') + 'px' }, 0);
+            },
+            fn_SocketConnect: function() {
+                var _t = this;
+                _t.socket = io.connect('//localhost:8000'); //소켓서버 연결
+                //_t.socket = io.connect('//0c529d8d.ngrok.io'); //소켓서버 연결
+
+                _t.socket
+                .on('connected', function(d) { 
+                    console.log('■ 소켓 연결됨');
+                    g_Chat.fn_RoomList();
+                })
+                .on('joinLobby', function(d) {
+                    console.log('■ joinLobby');
+                    console.log(JSON.stringify(d));
+                })
+                .on('roomList', function(d) {
+                    console.log('■ roomList');
+                    console.log(JSON.stringify(d));
+
+                    g_Chat.fn_RefreshRoomList(d);
+                })
+                .on('createRoom', function(d) {
+                    console.log('■ createRoom');
+                    console.log(JSON.stringify(d));
+
+                    if (d.value.result == 'N') alert('이미 생성된 방입니다.');
+                    else {
+                        g_Chat.fn_Message('createRoom', d);
+                        g_Chat.fn_RefreshRoomList(d);
+                    }
+                })
+                .on('joinRoom', function(d) {
+                    console.log('■ joinRoom');
+                    console.log(JSON.stringify(d));
+
+                    g_Chat.fn_Message('joinRoom', d);
+                    g_Chat.fn_RefreshRoomList(d);
+                })
+                .on('leaveRoom', function(d) {
+                    console.log('■ leaveRoom');
+                    console.log(JSON.stringify(d));
+
+                    g_Chat.fn_Message('leaveRoom', d);
+                    g_Chat.fn_RefreshRoomList(d);
+                })
+                .on('sendMessage', function(d) {
+                    console.log('■ sendMessage');
+                    console.log(JSON.stringify(d));
+
+                    g_Chat.fn_Message('userMessage', d);
+                });
+            },
+            fn_RoomList: function() {
+                var _t = this;
+                _t.data.mode = 'roomList';
+                _t.socket.emit(_t.data.mode, _t.data);
+
+                _t.data.mode = 'joinLobby';
+                _t.data.value = {
+                    room: 'Lobby',
+                    id: $('#txt_ID').val(),
+                    nickName: $('#txt_NickName').val()
+                }
+                _t.socket.emit(_t.data.mode, _t.data);
+
+            },
+            fn_RefreshRoomList: function(d) {
+                if (d == null || d.rooms == null || d.rooms.length <= 0) {
+                    $('#li_DataEmpty').css('display', '');
+                    $('#li_DataEmpty').parent().find('li').not(':first').remove();
+                } else {
+                    $('#li_DataEmpty').css('display', 'none');
+
+                    var $ul = $('<ul>');
+                    for (var i=0; i<d.rooms.length; i++) {
+                        var $li = $('<li>').css('cursor', 'pointer').attr('data-room_id', d.rooms[i].room_id);
+                        $ul.append($li.text(d.rooms[i].room_id));
+                    }
+
+                    $('#li_DataEmpty').parent().find('li').not(':first').remove().end().end().append($ul.children());
+                }
+            },
+            fn_CreateRoom: function() {                
+                var _t = this;
+                _t.data.mode = 'createRoom';
+                _t.data.value = {
+                    room: $('#txt_RoomName').val(),
+                    id: $('#txt_ID').val(),
+                    nickName: $('#txt_NickName').val()
+                }
+                _t.socket.emit(_t.data.mode, _t.data);
+            },
+            fn_JoinRoom: function(thisObj) {
+                var _t = this;
+                _t.data.mode = 'joinRoom';
+                _t.data.value = {
+                    room: $(thisObj).attr('data-room_id'),
+                    id: $('#txt_ID').val(),
+                    nickName: $('#txt_NickName').val()
+                }
+                _t.socket.emit(_t.data.mode, _t.data);
+            },
+            fn_LeaveRoom: function() {
+                var _t = this;
+                _t.data.mode = 'leaveRoom';
+                _t.data.value = {
+                    room: $('#txt_RoomName').val(),
+                    id: $('#txt_ID').val(),
+                    nickName: $('#txt_NickName').val()
+                }
+                _t.socket.emit(_t.data.mode, _t.data);
+            },
+            fn_Message: function(mode, d) {
+                var _t = this;
+                var $p = $('<p>');
+
+                if (mode == 'createRoom') {
+                    if (d.value.id == $('#txt_ID').val()) $p.append('★ [{0}] 방을 만들었습니다.'.format(d.value.room));
+                } else if (mode == 'joinRoom') {
+                    $p.append('★ [{0}]님이 입장하셨습니다.'.format(d.value.nickName));
+                } else if (mode == 'leaveRoom') {
+                    $p.append('★ [{0}]님이 퇴장하셨습니다.'.format(d.value.nickName));
+                } else if (mode == 'userMessage') {
+                    $p.append('■ [{0}] ({1})<br />&nbsp;> {2}'.format(d.value.nickName, d.value.date, d.value.message));
+                }
+                $('#div_ChatContent > div').append($p);
+                g_Chat.fn_AutoScroll('#div_ChatContent');
+            },
+            fn_Send: function() {
+                var _t = this;
+                _t.data.mode = 'sendMessage';
+				_t.data.value = {
+                    nickName: $('#txt_NickName').val(),
+                    message: $('#txt_Message').val(),
+                    date: new Date().convertTo('YYYY-MM-DD HH:MI:SS')
+                }
+				_t.socket.emit(_t.data.mode, _t.data);
+                	
+				$('#txt_Message').val('');
+            }
+        }
+	</script>
+</head>
+<body>
+
+<h4>[방목록]</h4>
+<div id="div_RoomList">
+    <div>
+        <ul>
+            <li id="li_DataEmpty" style="display:none;">생성된 방이 없습니다.</li>
+        </ul>
+        <input type="text" id="txt_RoomName" value="Room1" />
+        <a href="javascript:void(0);" id="btn_CreateRoom">[Create Room]</a>
+        <a href="javascript:void(0);" id="btn_LeaveRoom">[Leave Room]</a>
+    </div>
+</div>
+
+<h4>[채팅창]</h4>
+<div id="div_ChatContent" style="width:100%; height:200px; overflow-x:hidden; overflow-y:scroll;">
+    <div>
+    </div>
+</div>
+
+<h4>[입력폼]</h4>
+<div id="div_ChatForm">
+    <div>
+        <input type="text" id="txt_ID" style="width:50px;" value="user1" />
+        <input type="text" id="txt_NickName" style="width:50px;" value="홍길동" />
+        <input type="text" id="txt_Message" />
+        <a href="javascript:void(0);" id="btn_SendMessage">[Send]</a>
+    </div>
+</div>
+
+</body>
+</html>

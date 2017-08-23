@@ -1,0 +1,544 @@
+<!doctype html> 
+<html lang="ko"> 
+<head> 
+	<meta charset="UTF-8" />
+    <title>angularJS2</title>
+</head>
+<body>
+
+<script type="text/javascript">
+console = window.console || { log: function () { } };
+
+(function () {
+    function fn_LoadLibrary(url, callback) {
+        var obj = null, target = null;
+		if (url.toLowerCase().indexOf('.css') > -1) {
+			obj = document.createElement('link');
+			obj.type = 'text/css';
+			obj.rel = 'stylesheet';
+			obj.href = url;
+			target = 'head';
+		} else {
+			obj = document.createElement('script');
+			obj.type = 'text/javascript';
+			obj.src = url;
+			target = 'body';
+		}
+		document.getElementsByTagName(target)[0].appendChild(obj);
+        
+        if (obj.readyState) { // IE 경우
+            obj.onreadystatechange = function () {
+                if (obj.readyState == 'loaded' || obj.readyState == 'complete') { obj.onreadystatechange = null; callback(); }
+            };
+        } else { // 타 브라우저
+            obj.onload = function () { callback(); };
+        }
+    }
+
+	var loadCnt = 0, loadPath = [
+			'//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css',
+			//'//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js',
+			'//ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js',
+			//'//code.jquery.com/jquery-migrate-3.0.0.min.js',
+			//'//connect.facebook.net/en_US/all.js'
+		];
+	if (loadPath.length <= 0) fn_Run();
+    else for (var i = 0, j = loadPath.length; i < j; i++) fn_LoadLibrary(loadPath[i], function () { loadCnt++; if (loadCnt == j) fn_LoadScript(); });
+	
+	function fn_LoadScript() {
+		var loadCnt = 0, loadPath = [
+				'/javascripts/jquery.cookie.min.js',
+				'//cdnjs.cloudflare.com/ajax/libs/angular.js/1.6.5/angular.min.js',
+                '//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js',
+                '/ts/HelloWorld.js'
+			];
+		if (loadPath.length <= 0) fn_Run();
+		else for (var i = 0, j = loadPath.length; i < j; i++) fn_LoadLibrary(loadPath[i], function () { loadCnt++; if (loadCnt == j) fn_LoadSubScript(); });
+	}
+	
+    function fn_LoadSubScript() {
+        var loadCnt = 0, loadPath = [
+			];
+        if (loadPath.length <= 0) fn_Run();
+		else for (var i = 0, j = loadPath.length; i < j; i++) fn_LoadLibrary(loadPath[i], function () { loadCnt++; if (loadCnt == j) fn_Run(); });
+    }
+}());
+
+function fn_Run() {
+    //(function () {
+    var g_Init = g_Init || {},
+        g_Common = g_Common || {};
+
+    g_Init = {
+        fn_Init: function () {
+			g_Common.fn_SetPrototype().fn_SetAjax().fn_SetAddress().fn_ChkStatus().fn_SetDomain().fn_SaveIP().fn_ChkLanguage();
+
+			console.log('init!');
+			
+            g_Init.fn_Init = function () { };
+            //return this;
+        },
+        fn_Event: function () {
+
+            g_Init.fn_Event = function () { };
+        }
+    };
+
+    g_Common = {
+        clickCount: 0, ajaxUrl: '/Handler/EventHandler.ashx',
+        isMobileDevice: false, isIOS: false, isMobileWeb: false, isLive: false, debug: false, ip: '',
+        domain: '', currentAddress: '', parentAddress: '', language: null, useChannel: '|WEB|', currentChannel: '',
+        fn_NameSpace: function (ns, ns_string) {
+            var parts = ns_string.split('.'),
+                parent = ns,
+                i, j;
+            //parts = parts.slice(1);
+            for (i = 0, j = parts.length; i < j; i += 1) {
+                if (typeof parent[parts[i]] === 'undefined') parent[parts[i]] = {};
+                else if (i == parts.length - 1) alert('Exist Object ===> ' + ns + '.' + ns_string);
+                parent = parent[parts[i]];
+            }
+            return parent;
+        },
+        fn_SetAddress: function () {
+            this.currentAddress = this.fn_RemoveBad(location.href).toLowerCase();
+            if (this.currentAddress.indexOf('jinair.com') > -1
+                && /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(navigator.userAgent.toLowerCase())
+                && document.domain != 'jinair.com') document.domain = 'jinair.com';
+            try {
+                this.parentAddress = this.fn_RemoveBad(parent.location.href).toLowerCase();
+            } catch (e) { }
+            return this;
+        },
+        fn_ChkStatus: function () {
+            this.isLive = this.currentAddress.indexOf('www.jinair.com') > -1 || this.currentAddress.indexOf('m.jinair.com') > -1 ? true : false;
+            this.isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(navigator.userAgent.toLowerCase()) ? true : false;
+            this.isMobileWeb = this.currentAddress.indexOf('ismobileweb=y') > -1 || this.parentAddress.indexOf('ismobileweb=y') > -1 ? true : false;
+            this.isIOS = (/iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase())) ? true : false;
+            this.currentChannel = this.isMobileDevice ? (this.isMobileWeb ? 'MOW' : 'MOB') : 'WEB';
+
+            var arrUrl = this.currentAddress.split('/'),
+                fileName = arrUrl[arrUrl.length - 1];
+
+            if (this.useChannel.indexOf('|MOB|') > -1 && this.isMobileDevice && (this.currentAddress.indexOf('www.jinair.com') > -1 || this.currentAddress.indexOf('wwwstg.jinair.com/') > -1)) { location.href = (this.isLive ? 'https://m.jinair.com' : 'http://wwwstg.jinair.com:8082') + '/Event/' + fileName; return false; }
+            if (this.useChannel.indexOf('|WEB|') > -1 && !this.isMobileDevice && (this.currentAddress.indexOf('m.jinair.com') > -1 || this.currentAddress.indexOf('wwwstg.jinair.com:8082') > -1 || this.currentAddress.indexOf('mstg.jinair.com') > -1)) { location.href = (this.isLive ? 'http://www.jinair.com' : 'http://wwwstg.jinair.com') + '/HOM/Event/OpenEvent/' + fileName; return false; }
+            return this;
+        },
+        fn_SetDomain: function () {
+            /*
+            var p = { mode: 'GET_DOMAIN' }, 
+                o = { proccess: 'g_Common.fn_SetDomain.01' };
+            g_Common.fn_AjaxCall(p, o)
+                .done(function (res) { g_Common.domain = (res == 'http://localhost') ? 'http://wwwstg.jinair.com' : res; })
+                .fail(function (res) { console.log('p:', p, 'o:', o, 'res:', res); });
+            */
+            if (this.isLive) this.domain = '|MOW|MOB|'.indexOf(this.currentChannel) > -1 ? 'https://m.jinair.com' : 'https://www.jinair.com';
+            else this.domain = '|MOW|MOB|'.indexOf(this.currentChannel) > -1 ? 'http://wwwstg.jinair.com:8081' : 'http://wwwstg.jinair.com';
+            return this;
+        },
+
+        fn_SaveIP: function () {
+            g_Common.debug = g_Common.debug || g_Common.fn_RequestParameter('debug') === '1' ? true : false;
+            if (g_Common.debug) {
+                var p = {},
+                    o = {
+                        proccess: 'g_Common.fn_SaveIP.01', async: true, dataType: 'jsonp',
+                        url: g_Common.currentAddress.indexOf('file://') > -1 ? 'http://ipinfo.io' : '//ipinfo.io'
+                    };
+                var await = g_Common.fn_AjaxCall(p, o)
+                    .done(function (res) { g_Common.ip = g_Common.fn_RemoveBad(res.ip); console.log(g_Common.ip); })
+                    .fail(function (res) { console.log('p:', p, 'o:', o, 'res:', res); });
+
+                $.when(await).done(function () {
+                    if (g_Common.ip != '') {
+                        if (g_Common.isMobileDevice) alert(g_Common.ip);
+                        var p = {
+                            mode: 'SET_PROMOTION_JOIN',
+                            EventId: '0',
+                            Answer: '',
+                            AnswerSecond: '',
+                            AnswerThird: g_Common.ip,
+                            AnswerFourth: g_Common.currentChannel,
+                            IsUnlimited: 'Y',
+                            IsDuplication: 'N'
+                        }, o = {
+                            proccess: 'g_Common.fn_SaveIP.02', async: true
+                        };
+                        g_Common.fn_AjaxCall(p, o)
+                            .done(function (res) { console.log(res); })
+                            .fail(function (res) { console.log('p:', p, 'o:', o, 'res:', res); });
+                    }
+                });
+            }
+            return this;
+        },
+        fn_ChkLanguage: function () {
+            var c_SiteLanguage = $.cookie('SiteLanguage'), // KOR|KRW ENG|USD JPN|USD CHN|USD CHT|USD
+                r_SiteLanguage = g_Common.fn_RequestParameter('language'); // KOR ENG JPN CHN CHT
+            g_Common.language = (!''.isNullOrEmpty(r_SiteLanguage) ? r_SiteLanguage : (!''.isNullOrEmpty(c_SiteLanguage) && c_SiteLanguage.indexOf('|') > -1 ? c_SiteLanguage.split('|')[0] : 'KOR')).toUpperCase();
+        },
+        fn_SetAjax: function () {
+            $.ajaxSetup({
+                url: this.ajaxUrl,
+                type: 'GET',
+                contentType: 'application/json; charset=utf-8',
+                dataType: 'json',
+                async: false,
+                cache: false,
+                error: function (jqXHR, textStatus, errorThrown) {
+                    if (jqXHR.status != 0) alert('errorCode : ' + jqXHR.status + '\r\nerrorMessage : ' + jqXHR.statusText + '\r\nfullResponse : ' + jqXHR.responseText + '\r\nreadyState : ' + jqXHR.readyState);
+                },
+                complete: function () { g_Common.clickCount--; }
+            });
+            return this;
+        },
+        fn_Promise: function () {
+            var myClass = function () {
+                this.busy = false;
+                this.queue = [];
+
+                this.step = null;
+
+                this.proccess = function (step) {
+                    this.step = step;
+                    return this;
+                };
+
+                this.then = function (fn) {
+                    this.queue.push(fn);
+                    this.exec();
+                    return this;
+                };
+
+                this.exec = function (data) {
+                    if (this.busy) return this;
+                    var Q = this.queue.shift(),
+                        self = this;
+
+                    if (Q) {
+                        this.busy = true;
+
+                        try {
+                            Q(
+                                function (res) {
+                                    self.busy = false;
+                                    self.exec(res);
+                                },
+                                function (e) {
+                                    self._catch();
+                                },
+                                data
+                            );
+                        }
+                        catch (e) {
+                            this._catch(e);
+                        }
+                    } else {
+                        this.busy = false;
+                    }
+                };
+
+                this._catch = function (e) {
+                    var p = '\n\n- Proccess: [' + this.step + ']',
+                        ec = (typeof e === 'string' && e.indexOf('errorCode') > -1) ? '\n- ErrorCode: [' + e.substring(e.indexOf('errorCode') + 12, 15) + ']' : '',
+                        em = (typeof e === 'object' && e.message != null) ? '\n- ErrorMessage: [' + e.message + ']' : '',
+                        msg = ['에러가 발생했습니다!' + p + (g_Common.debug ? ec + em : ''), e];
+                    alert(msg[0]);
+                    if (g_Common.debug) console.log(msg);
+                };
+            };
+
+            return new myClass();
+        },
+        fn_AjaxPromise: function (p) {
+            var defer = $.Deferred();
+            $.ajax({
+                async: false,
+                data: p,
+                success: function (res) { defer.resolve(res); },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    if (jqXHR.status != 0) defer.reject('errorCode : ' + jqXHR.status + '\r\nerrorMessage : ' + jqXHR.statusText + '\r\nfullResponse : ' + jqXHR.responseText + '\r\nreadyState : ' + jqXHR.readyState);
+                }
+            });
+            return defer.promise();
+        },
+        fn_AjaxCall: function (p, o) {
+            var option = {};
+            option.url = o.url != null ? o.url : g_Common.ajaxUrl;
+            option.type = o.type != null ? o.type : 'GET';
+            option.contentType = o.contentType != null ? o.contentType : 'application/json; charset=utf-8';
+            option.dataType = o.dataType != null ? o.dataType : 'json';
+            option.async = o.async != null ? o.async : false;
+            option.cache = o.cache != null ? o.cache : false;
+            option.data = p != null ? p : '';
+            return $.ajax(option);
+        },
+        fn_RequestParameter: function (parameterName) {
+            parameterName = parameterName.toLowerCase();
+            var rtnVal = '', queryString = '', arrParam = '';
+            if (this.currentAddress.indexOf('?') > -1) {
+                queryString = this.currentAddress.split('?')[1];
+                if (queryString.indexOf('&') <= -1) {
+                    if (queryString.indexOf('=') > -1) {
+                        arrParam = queryString.split('=');
+                        if (arrParam[0] == parameterName) rtnVal = arrParam[1];
+                    }
+                } else {
+                    arrParams = queryString.split('&');
+                    for (var i = 0, j = arrParams.length; i < j; i++) {
+                        if (arrParams[i].indexOf('=') > -1) {
+                            arrParam = arrParams[i].split('=');
+                            if (arrParam[0] == parameterName) { rtnVal = arrParam[1]; break; }
+                        }
+                    }
+                }
+            }
+            return rtnVal;
+        },
+        fn_NeedLogin: function (msg) {
+            msg == null || msg == '' ? alert('본 이벤트는 로그인 후 참여가 가능합니다.') : alert(msg);
+            var returnURL = this.parentAddress == '' ? this.currentAddress : this.parentAddress,
+                returnMobileWeb = this.isMobileWeb ? param = returnURL.indexOf('?') <= -1 ? '?IsMobileWeb=Y' : '&IsMobileWeb=Y' : '',
+                paramMobileWeb = this.isMobileWeb ? param = '?IsMobileWeb=Y&' : '?',
+                arrUrl = g_Common.currentAddress.split('/'),
+                fileName = arrUrl[arrUrl.length - 1],
+                loginPath = g_Common.language == 'KOR' ? '/User' : '/UserInternational';
+
+            (g_Common.useChannel.indexOf('|MOB|') > -1 && g_Common.isMobileDevice && !g_Common.isMobileWeb)
+                ? parent.document.location = '//' + (g_Common.isLive ? 'm.jinair.com' : 'mstg.jinair.com') + loginPath + '/Login.aspx?ReturnUrl=' + encodeURIComponent('/Event/' + fileName + '?IsMobileWeb=Y')
+                : parent.document.location = loginPath + '/Login.aspx' + paramMobileWeb + 'ReturnURL=' + encodeURIComponent(returnURL + returnMobileWeb);
+        },
+        fn_InputLimit: function (mode, arrObjNM, transform) {
+            // g_Common.fn_InputLimit('all', ['input[type=text]'], null);
+            // g_Common.fn_InputLimit('num', ['.input_num'], null);
+            // g_Common.fn_InputLimit('eng', ['.input_eng'], 'u');
+            // g_Common.fn_InputLimit('kor', ['.input_kor'], null);
+            // g_Common.fn_InputLimit('num_eng', ['.input_num_eng'], 'u');
+            // g_Common.fn_InputLimit('num_eng', ['.input_num_eng'], 'l');
+            // g_Common.fn_InputLimit('num_kor', ['.input_num_eng'], null);
+            // g_Common.fn_InputLimit('eng_kor', ['.input_num_eng'], 'u');
+            // g_Common.fn_InputLimit('eng_kor', ['.input_num_eng'], 'l');
+
+            mode = mode.toLowerCase();
+            var regexp = null,
+                regexp_replace = null,
+                ime_mode = null,/*auto:한/영 설정된 언어 기본, active:한글 기본, inactive:영문 기본, disabled:영문만 활성*/
+                text_transform = (transform != null) ? (transform.toUpperCase() == 'A' ? null : (transform.toUpperCase() == 'L' ? 'lowercase' : 'uppercase')) : null; // style='ime-mode:disabled; text-transform: uppercase;' 대문자 영어만 입력
+
+            if (mode == 'num') { regexp = /[^^0-9]+/g; regexp_replace = /[^0-9]+/g; ime_mode = 'disabled'; }
+            else if (mode == 'eng') { regexp = /[^^a-zA-Z]+/g; regexp_replace = /[^a-zA-Z]+/g; ime_mode = 'disabled'; }
+            else if (mode == 'kor') { regexp = /[^^ㄱ-ㅎㅏ-ㅣ가-힣]+/g; regexp_replace = /[^가-힣]+/g; ime_mode = 'active'; }
+            else if (mode == 'num_eng') { regexp = /[^^0-9a-zA-Z]+/g; regexp_replace = /[^0-9a-zA-Z]+/g; ime_mode = 'disabled'; }
+            else if (mode == 'num_kor') { regexp = /[^^0-9ㄱ-ㅎㅏ-ㅣ가-힣]+/g; regexp_replace = /[^0-9가-힣]+/g; ime_mode = 'active'; }
+            else if (mode == 'eng_kor') { regexp = /[^^a-zA-Zㄱ-ㅎㅏ-ㅣ가-힣]+/g; regexp_replace = /[^a-zA-Z가-힣]+/g; ime_mode = 'active'; }
+
+            for (var i = 0, j = arrObjNM.length; i < j; i++) {
+                var objNM = arrObjNM[i],
+                    $obj = $(objNM);
+
+                if (ime_mode != null) $obj.css('ime-mode', ime_mode);
+                if (text_transform != null) $obj.css('text-transform', text_transform);
+
+                if (this.isMobileDevice) {
+                    if (this.isIOS) {
+                        if (mode == 'num') $obj.prop({ 'type': 'text', 'pattern': '[0-9]' });
+                        else if (mode == 'eng' && transform == 'A') $obj.prop({ 'type': 'text', 'pattern': '[a-zA-Z]' });
+                        else if (mode == 'eng' && transform == 'L') $obj.prop({ 'type': 'text', 'pattern': '[a-z]' });
+                        else if (mode == 'eng' && transform == 'U') $obj.prop({ 'type': 'text', 'pattern': '[A-Z]' });
+                        else if (mode == 'kor') $obj.prop({ 'type': 'text', 'pattern': '[ㄱ-ㅎㅏ-ㅣ가-힣]' });
+                        else if (mode == 'num_eng' && transform == 'A') $obj.prop({ 'type': 'text', 'pattern': '[0-9a-zA-Z]' });
+                        else if (mode == 'num_eng' && transform == 'L') $obj.prop({ 'type': 'text', 'pattern': '[0-9a-z]' });
+                        else if (mode == 'num_eng' && transform == 'U') $obj.prop({ 'type': 'text', 'pattern': '[0-9A-Z]' });
+                        else if (mode == 'num_kor') $obj.prop({ 'type': 'text', 'pattern': '[0-9ㄱ-ㅎㅏ-ㅣ가-힣]' });
+                        else if (mode == 'eng_kor' && transform == 'A') $obj.prop({ 'type': 'text', 'pattern': '[a-zA-Zㄱ-ㅎㅏ-ㅣ가-힣]' });
+                        else if (mode == 'eng_kor' && transform == 'L') $obj.prop({ 'type': 'text', 'pattern': '[a-zㄱ-ㅎㅏ-ㅣ가-힣]' });
+                        else if (mode == 'eng_kor' && transform == 'U') $obj.prop({ 'type': 'text', 'pattern': '[A-Zㄱ-ㅎㅏ-ㅣ가-힣]' });
+                    } else {
+                        //if (mode == 'num') $obj.prop({ 'type': 'number', 'height': '20px' });
+                    }
+                }
+
+                $(document.body).off('keydown keyup focus blur', objNM).on('keyup keypress focus blur', objNM, function () {
+                    var $t = $(this),
+                        value = $t.val();
+                    if (regexp != null && regexp.test(value)) $t.val(value.replace(regexp_replace, ''));
+                    if (value.length > $t.attr('maxlength')) $t.val(value.substring(0, $t.attr('maxlength') - 1));
+                });
+            }
+        },
+        fn_SetNumLength: function (val) {
+            val = $.trim(val);
+            if ((val + '').length == 1) val = '0' + val;
+            return val;
+        },
+        fn_SetPrototype: function () {
+            function padZero (obj) {
+                obj = obj + '';
+                if (obj.length == 1) obj = '0' + obj;
+                return obj;
+            }
+            function convert(mode, type, val) {
+                val = String(val);
+                if (mode == 'YYYYMMDD') val = val.replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/g, '$1$2$3');
+                else if (mode == 'YYYY-MM-DD') val = val.replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/g, '$1-$2-$3');
+                else if (mode == "YYYYMMDDHHMISS") val = val.replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/g, '$1$2$3$4$5$6');
+                else if (mode == "YYYY-MM-DD HH:MI:SS") val = val.replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/g, '$1-$2-$3 $4:$5:$6');
+                else if (mode == "HHMISS") val = val.replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/g, '$4$5$6');
+                return val = type == 'I' ? parseInt(val, 10) : val;
+            }
+            Date.prototype.toConvert = function () {
+                var o = '', mode = '', type = '';
+                o += this.getFullYear();
+                o += padZero(this.getMonth() + 1);
+                o += padZero(this.getDate());
+                o += padZero(this.getHours());
+                o += padZero(this.getMinutes());
+                o += padZero(this.getSeconds());
+                mode = String(arguments[0]).toUpperCase();
+                type = String(arguments[1]).toUpperCase();
+                o = convert(mode, type, o);
+                return o;
+            };
+            String.prototype.toConvert = function () {
+                var s = this, mode = '', type = '';
+                mode = String(arguments[0]).toUpperCase();
+                type = String(arguments[1]).toUpperCase();
+                s = convert(mode, type, s);
+                return s;
+            };
+
+            String.prototype.format = function () {
+                var s = this,
+                    i = arguments.length;
+
+                while (i--) {
+                    s = s.replace(new RegExp('\\{' + i + '\\}', 'gm'), arguments[i]);
+                }
+                return s;
+            };
+
+            String.prototype.isNullOrEmpty = function (obj) {
+                return typeof obj === 'string' && $.trim(obj).length > 0 ? false : true;
+            };
+
+            String.prototype.insertComma = function () {
+                var s = this;
+                if (s != null) rtnVal = String(s).replace(/(\d)(?=(\d\d\d)+(?!\d))/g, '$1,');
+                return rtnVal;
+            };
+
+            return this;
+        },
+        fn_RemoveBad: function (val) {
+            if (val == null || val == '' || val == 'undefined') return '';
+
+            val = val.replace(/\</g, '');
+            val = val.replace(/\>/g, '');
+            val = val.replace(/\"/g, '');
+            val = val.replace(/\'/g, '');
+            val = val.replace(/\%/g, '');
+            val = val.replace(/\;/g, '');
+            val = val.replace(/\(/g, '');
+            val = val.replace(/\)/g, '');
+            //val = val.replace(/\&/g, ''); // 회원 로그인 후 ReturnUrl Redirect 시 & 가 제거되면 Querystring 파라미터를 못가져 와서 주석 처리함.
+            val = val.replace(/\+/g, '');
+
+            return val;
+        },
+        fn_GoogleAnaltics: function () {
+            if (this.currentAddress != null && this.currentAddress.indexOf('www.jinair.com') > -1) {
+                (function (i, s, o, g, r, a, m) {
+                    i['GoogleAnalyticsObject'] = r; i[r] = i[r] || function () {
+                        (i[r].q = i[r].q || []).push(arguments)
+                    }, i[r].l = 1 * new Date(); a = s.createElement(o),
+                    m = s.getElementsByTagName(o)[0]; a.async = 1; a.src = g; m.parentNode.insertBefore(a, m)
+                })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+
+                ga('create', 'UA-27193049-2', 'auto');
+                ga('send', 'pageview');
+            }
+        }
+    };
+
+    // 클래스 생성 / 프로토타입 기능 구현 / 상속
+    /*
+    var Parent = function () {
+        this.name = '홍길동';
+        this.age = 20;
+    }
+    
+    Parent.prototype.speak = function () {
+        alert('이름은 ' + this.name + '입니다!');
+    }
+    
+    var Child = new Parent();
+    Child.name = '성춘향';
+    
+    var Person = new Parent();
+    Person.name = '임꺽정';
+    
+    Child.speak();
+    Person.speak();
+    Child.speak();
+    */
+
+
+    /* for 구문 퍼포먼스 업
+    var obj = {};
+    for (var i=0, j=obj.length; i<j; i++) {
+        
+    }
+    */
+
+    /* 
+    // 프로토타입 테스트
+    //#예제 1.
+    var A = function () {
+        this.x = function () {
+             console.log('hello');
+        };
+    };
+    A.x=function () {
+        console.log('world');
+    };
+    var B = new A();
+    var C = new A();
+    B.x();
+    //> hello
+    C.x();
+    //> hello
+    
+    //#예제 2.
+    var A = function () { };
+    A.x=function () {
+        console.log('hello');
+    };
+    A.prototype.x = function () {
+         console.log('world');
+    };
+    var B = new A();
+    var C = new A();
+    B.x();
+    //> world
+    C.x();
+    //> world
+    */
+
+    // 압축 : http://javascriptcompressor.com/
+    // 복원 : http://jsbeautifier.org/
+
+    // 즉시 실행
+    /*
+(function () { 
+
+}());
+    */
+
+    (function () { g_Init.fn_Event() }(g_Init.fn_Init()));
+    //g_Init.fn_Init().fn_Event();
+
+    //}());
+}
+</script>
+</body>
+</html>

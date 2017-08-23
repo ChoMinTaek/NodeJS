@@ -1,0 +1,190 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+	<meta charset="UTF-8" />
+    <title>Phaser - Making your first game, part 9</title>
+    <script src="//cdn.jsdelivr.net/phaser/2.2.2/phaser.min.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<a href="javascript:void(0);" id="btn_AddPlayer">[플레이어 추가]</a>
+
+<script src="/jquery/jquery.min.js"></script>
+<script src="/javascripts/prototype.js"></script>
+<script src="/javascripts/common.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script type="text/javascript">
+var g_Game = {
+  game: null
+  , player: null
+  , platforms: null
+  , cursors: null
+  , stars: null
+  , score: 0
+  , scoreText: null
+  , fn_Init: function(){
+    this.game = new Phaser.Game(800, 600, Phaser.AUTO, '', { preload: this.fn_Preload, create: this.fn_Create, update: this.fn_Update });    
+  }
+  , fn_Preload: function(){
+    this.game.load.image('sky', 'assets/game1/sky.png');
+    this.game.load.image('ground', 'assets/game1/platform.png');
+    this.game.load.image('star', 'assets/game1/star.png');
+    this.game.load.spritesheet('dude', 'assets/game1/dude.png', 32, 48);
+  }
+  , fn_Create: function(){
+    //  We're going to be using physics, so enable the Arcade Physics system
+    // 우리는 물리학을 사용하게 될 것이므로 Arcade Physics 시스템을 활성화하십시오.
+    this.game.physics.startSystem(Phaser.Physics.ARCADE);
+
+    //  A simple background for our game
+    // 우리 게임의 간단한 배경
+    this.game.add.sprite(0, 0, 'sky');
+
+    //  The platforms group contains the ground and the 2 ledges we can jump on
+    // 플랫폼 그룹에는 땅과 우리가 뛰어 넘을 수있는 2 개의 선반이 있습니다.
+    this.platforms = this.game.add.group();
+
+    //  We will enable physics for any object that is created in this group
+    // 이 그룹에서 생성 된 모든 객체에 대해 물리학을 활성화합니다.
+    this.platforms.enableBody = true;
+
+    // Here we create the ground.
+    // 여기에서 우리는 땅을 만듭니다.
+    var ground = this.platforms.create(0, this.game.world.height - 64, 'ground');
+
+    //  Scale it to fit the width of the game (the original sprite is 400x32 in size)
+    // 크기를 게임의 너비에 맞 춥니 다 (원래 스프라이트 크기는 400x32입니다)
+    ground.scale.setTo(2, 2);
+
+    //  This stops it from falling away when you jump on it
+    // 이렇게하면 뛰어 내릴 때 떨어지는 것을 멈 춥니 다.
+    ground.body.immovable = true;
+
+    //  Now let's create two ledges
+    // 이제 두 개의 선반을 만들어 보겠습니다.
+    var ledge = this.platforms.create(400, 400, 'ground');
+    ledge.body.immovable = true;
+
+    ledge = this.platforms.create(-150, 250, 'ground');
+    ledge.body.immovable = true;
+
+    // The player and its settings
+    // 플레이어와 설정
+    this.player = this.game.add.sprite(32, this.game.world.height - 150, 'dude');
+
+    //  We need to enable physics on the player
+    // 플레이어에서 물리학을 활성화해야합니다.
+    this.game.physics.arcade.enable(this.player);
+
+    //  Player physics properties. Give the little guy a slight bounce.
+    // 플레이어 물리 특성. 작은 녀석에게 약간의 바운스를주십시오.
+    this.player.body.bounce.y = 0.2;
+    this.player.body.gravity.y = 300;
+    this.player.body.collideWorldBounds = true;
+
+    //  Our two animations, walking left and right.
+    // 우리의 두 애니메이션, 왼쪽 및 오른쪽으로 걷기.
+    this.player.animations.add('left', [0, 1, 2, 3], 10, true);
+    this.player.animations.add('right', [5, 6, 7, 8], 10, true);
+
+    //  Finally some stars to collect
+    // 마지막으로 수집 할 별들
+    this.stars = this.game.add.group();
+
+    //  We will enable physics for any star that is created in this group
+    // 이 그룹에서 생성 된 모든 별에 물리학을 사용할 수 있습니다.
+    this.stars.enableBody = true;
+
+    //  Here we'll create 12 of them evenly spaced apart
+    // 여기서 우리는 균등하게 간격을 둔 12 개를 생성 할 것입니다.
+    for (var i = 0; i < 12; i++) {
+        //  Create a star inside of the 'stars' group
+        // 별 그룹 만들기
+        var star = this.stars.create(i * 70, 0, 'star');
+
+        //  Let gravity do its thing
+        // 중력은 그것의 일을하자.
+        star.body.gravity.y = 300;
+
+        //  This just gives each star a slightly random bounce value
+        // 이것은 각 별에 약간 랜덤 한 바운스 값을줍니다.
+        star.body.bounce.y = 0.7 + Math.random() * 0.2;
+    }
+
+    //  The score
+    // 점수
+    g_Game.scoreText = this.game.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
+
+    //  Our controls.
+    // 우리의 통제.
+    this.cursors = this.game.input.keyboard.createCursorKeys();
+  }
+  , fn_Update: function(){
+    //  Collide the player and the stars with the platforms
+    // 플레이어와 별을 플랫폼과 충돌 시키십시오.
+    var hitPlatform = this.game.physics.arcade.collide(this.player, this.platforms);
+    this.game.physics.arcade.collide(this.stars, this.platforms);
+
+    //  Checks to see if the player overlaps with any of the stars, if he does call the collectStar function
+    // collectStar 함수를 호출하면 플레이어가 별과 겹치는 지 확인합니다.
+    this.game.physics.arcade.overlap(this.player, this.stars, g_Game.fn_CollectStar, null, this);
+
+    //  Reset the players velocity (movement)
+    // 선수 속도 재설정 (움직임)
+    this.player.body.velocity.x = 0;
+
+    if (this.cursors.left.isDown) {
+        //  Move to the left
+        // 왼쪽으로 이동
+        this.player.body.velocity.x = -150;
+
+        this.player.animations.play('left');
+    } else if (this.cursors.right.isDown) {
+        //  Move to the right
+        // 오른쪽으로 이동
+        this.player.body.velocity.x = 150;
+
+        this.player.animations.play('right');
+    } else {
+        //  Stand still
+        // 여전히 서있다
+        this.player.animations.stop();
+
+        this.player.frame = 4;
+    }
+    
+    //  Allow the player to jump if they are touching the ground.
+    // 플레이어가 땅에 닿으면 점프 할 수 있게 하십시오.
+    if (this.cursors.up.isDown && this.player.body.touching.down && hitPlatform) {
+        this.player.body.velocity.y = -350;
+    }
+
+    // 플레이어 내리기
+    if (this.cursors.down.isDown) {
+        this.player.body.velocity.y += 150;
+
+        this.player.animations.play('down');
+    }
+  }
+  , fn_CollectStar: function(player, star){
+    // Removes the star from the screen
+    // 화면에서 별을 제거합니다.
+    star.kill();
+
+    //  Add and update the score
+    // 점수 추가 및 업데이트
+    g_Game.score += 10;
+    g_Game.scoreText.text = 'Score: ' + g_Game.score;
+  }
+}
+
+g_Game.fn_Init();
+</script>
+
+</body>
+</html>
